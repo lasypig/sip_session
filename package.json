@@ -9,5 +9,8 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.1"
+  },
+  "dependencies": {
+    "openwolf": "^1.0.4"
   }
 }
