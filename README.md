@@ -13,7 +13,7 @@ A desktop application for analyzing SIP (Session Initiation Protocol) sessions f
 
 ## Screenshots
 
-> TODO: Add screenshots of the application
+ ![](./screenshot.png)
 
 ## Architecture
 
