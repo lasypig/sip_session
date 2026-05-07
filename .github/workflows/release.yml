@@ -15,10 +15,10 @@ jobs:
       contents: write
     outputs:
       release_id: ${{ steps.create-release.outputs.id }}
-    
+
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Create GitHub Release
         id: create-release
         uses: tauri-apps/tauri-action@v0.5
@@ -30,23 +30,23 @@ jobs:
           releaseName: ${{ github.ref_name }}
           releaseBody: |
             自动发布 Tauri 应用版本 ${{ github.ref_name }}
-            
+
             请下载对应平台的安装包。
           draft: false
           prerelease: false
 
-    build-and-upload:
-      name: Build ${{ matrix.platform }}
-      needs: create-release
-      runs-on: ${{ matrix.platform }}
-      permissions:
-        contents: write
-      strategy:
-        fail-fast: false
-        matrix:
-          platform:
-            - ubuntu-22.04
-            - windows-latest
+  build-and-upload:
+    name: Build ${{ matrix.platform }}
+    needs: create-release
+    runs-on: ${{ matrix.platform }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - ubuntu-22.04
+          - windows-latest
 
       steps:
         - uses: actions/checkout@v4
