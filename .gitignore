@@ -1,0 +1,52 @@
+# Rust 编译产物
+/target/
+**/*.rs.bk
+*.pdb
+*.dSYM/
+
+# Tauri 构建产物（位于 src-tauri 目录下）
+src-tauri/target/
+src-tauri/gen/
+src-tauri/bin/
+*.AppImage
+*.deb
+*.dmg
+*.exe
+*.msi
+*.app
+*.cap
+*.pcap
+
+# 前端依赖（根据你的包管理器选择保留）
+node_modules/
+/frontend/dist/
+/frontend/.next/
+/frontend/out/
+
+# 日志和临时文件
+*.log
+*.tmp
+*.swp
+*~
+
+# 操作系统生成的文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE 和编辑器配置（保留个性化）
+.vscode/
+.idea/
+*.sublime-*
+.project
+.classpath
+.settings/
+
+# 环境变量文件
+.env
+.env.local
+.env.*.local
+
+# 其他
+.cargo/credentials.toml
+rustfmt.toml

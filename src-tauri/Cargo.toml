@@ -1,0 +1,40 @@
+[package]
+name = "sip-session-analyzer"
+version = "0.1.0"
+description = "SIP session analysis tool"
+edition = "2021"
+
+[lib]
+name = "sip_session_analyzer_lib"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Tauri 2.x
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+
+# pcap文件解析
+pcap-file = "3.0.0-rc1"
+
+# 网络包解析
+etherparse = "0.14"
+
+# 序列化/反序列化
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# 错误处理
+thiserror = "1.0"
+
+# 时间处理
+chrono = "0.4"
+
+# UUID生成
+uuid = { version = "1.0", features = ["v4"] }
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
