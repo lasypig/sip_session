@@ -1,0 +1,98 @@
+name: 'Release'
+
+# 触发条件：当你推送格式为 v*.*.* 的标签时自动运行，比如 v1.0.0
+on:
+  push:
+    tags:
+      - 'v1.0.0'
+
+jobs:
+  create-release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    outputs:
+      release_id: ${{ steps.create-release.outputs.id }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: 创建 GitHub Release
+        id: create-release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # 不在此步骤进行构建，只创建 Release
+          skipBuild: true
+          tagName: ${{ github.ref_name }}
+          releaseName: ${{ github.ref_name }}
+          releaseBody: "自动发布 Tauri 应用版本 ${{ github.ref_name }}，请下载对应平台的安装包。"
+          draft: true
+          prerelease: false
+
+  build-tauri:
+    permissions:
+      contents: write
+    needs: create-release
+    strategy:
+      # 避免因单一平台构建失败而终止其他平台
+      fail-fast: false
+      matrix:
+        # 定义需要构建的平台，按需选择或增减
+        include:
+          # Windows x64
+          - platform: 'windows-latest'
+            args: '--target x86_64-pc-windows-msvc'
+          # Linux x64
+          - platform: 'ubuntu-22.04'
+            args: ''
+          # Linux Arm64 (例如树莓派)
+          #- platform: 'ubuntu-22.04'
+            #args: '--target aarch64-unknown-linux-gnu'
+          # macOS  x64 (Intel)
+          #- platform: 'macos-latest'
+            #args: '--target x86_64-apple-darwin'
+          # macOS ARM64 (Apple Silicon)
+          #- platform: 'macos-latest'
+            #args: '--target aarch64-apple-darwin'
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. 安装 Node.js (根据你的前端框架调整依赖安装命令)
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: 'pnpm'    # 如果使用 npm 或 yarn，请替换为 'npm' 或 'yarn'
+
+      - name: 安装前端依赖
+        run: pnpm install    # 如果使用 npm 或 yarn，请替换为 'npm ci' 或 'yarn install'
+
+      # 2. 安装 Rust 工具链
+      - name: 安装 Rust 稳定版
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: 缓存 Rust 构建产物
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: 'src-tauri'
+
+      # 3. 安装 Linux (Ubuntu) 构建依赖
+      - name: 安装 Linux 依赖
+        if: startsWith(matrix.platform, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+
+      # 4. 核心：使用 tauri-action 进行打包并上传到 Release
+      - name: 构建并上传 Tauri 产物
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          args: ${{ matrix.args }}
