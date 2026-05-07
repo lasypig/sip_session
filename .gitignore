@@ -33,6 +33,7 @@ node_modules/
 .DS_Store
 Thumbs.db
 desktop.ini
+CLAUDE.md
 
 # IDE 和编辑器配置（保留个性化）
 .vscode/
