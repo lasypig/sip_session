@@ -85,7 +85,7 @@ fn extract_sip_from_data(data: &[u8], timestamp_ns: u64) -> Option<ParsedPacket>
     // Debug: Print first bytes
     if !data.is_empty() {
         let preview_len = std::cmp::min(36, data.len());
-        eprintln!("Packet data (first {} bytes): {:02x?}", preview_len, &data[..preview_len]);
+        // eprintln!("Packet data (first {} bytes): {:02x?}", preview_len, &data[..preview_len]);
     }
 
     let mut headers = None;
@@ -94,12 +94,12 @@ fn extract_sip_from_data(data: &[u8], timestamp_ns: u64) -> Option<ParsedPacket>
     // Try 1: Parse as Ethernet frame
     match PacketHeaders::from_ethernet_slice(data) {
         Ok(h) => {
-            eprintln!("Parsed as Ethernet frame, net={:?}", h.net.is_some());
+            // eprintln!("Parsed as Ethernet frame, net={:?}", h.net.is_some());
             if h.net.is_some() {
                 headers = Some(h);
             } else {
                 // Ethernet parsed OK but no IP header - might be SLL in disguise
-                eprintln!("Ethernet parsed but no IP header, will try SLL");
+                // eprintln!("Ethernet parsed but no IP header, will try SLL");
                 eth_net_none = true;
             }
         }

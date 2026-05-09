@@ -3,6 +3,10 @@
   "description": "默认能力",
   "windows": ["main"],
   "permissions": [
-    "dialog:allow-open"
+    "dialog:allow-open",
+	"core:event:default",
+	"core:webview:default",
+    "core:window:default",
+    "core:window:allow-start-dragging"
   ]
 }

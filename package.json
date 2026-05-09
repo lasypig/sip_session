@@ -1,6 +1,6 @@
 {
   "name": "sip-session-analyzer",
-  "version": "0.1.0",
+  "version": "1.0.8",
   "description": "SIP session analysis tool for pcap files",
   "scripts": {
     "dev": "tauri dev",

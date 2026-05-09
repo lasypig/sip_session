@@ -1,5 +1,6 @@
 <template>
-  <div class="app-container">
+  <div class="app-container"
+       :class="{ 'drag-active': isDragging }">
     <Toolbar @open-file="handleOpenFile" :loading="loading" />
     <div class="main-content">
       <div class="left-panel">
@@ -27,11 +28,20 @@
       {{ error }}
       <button @click="error = ''">×</button>
     </div>
+    <!-- Drag overlay -->
+    <div v-if="isDragging" class="drag-overlay">
+      <div class="drag-content">
+        <p class="drag-icon">📁</p>
+        <p class="drag-text">Drop PCAP file here</p>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue'
+import { getCurrentWebview } from '@tauri-apps/api/webview'
+import type { DragDropEvent } from '@tauri-apps/api/webview'
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import Toolbar from './components/Toolbar.vue';
@@ -48,6 +58,80 @@ const selectedMessageId = ref<string>('');
 const loading = ref(false);
 const error = ref('');
 
+const isDragging = ref(false);
+
+let unlisten: (() => void) | null = null;
+
+async function handleFileDropped(file: string) {
+  // Open file and parse
+	  loading.value = true;
+  console.log('Opening file:', file);
+  const messages = await invoke<SipMessage[]>('open_pcap_file', { path: file as string });
+  console.log('Messages received:', messages?.length || 0);
+
+  // Get sessions
+  sessions.value = await invoke<Session[]>('get_sessions');
+  console.log('Sessions loaded:', sessions.value?.length || 0);
+
+  // Reset selection
+  selectedSessionKey.value = '';
+  selectedMessages.value = [];
+  selectedMessage.value = null;
+  selectedMessageId.value = '';
+
+  if (sessions.value.length === 0) {
+	error.value = 'No SIP sessions found in file';
+  }
+  loading.value = false;
+}
+
+onMounted( async () => {
+  try {
+    const webview = getCurrentWebview()
+    
+    unlisten = await webview.onDragDropEvent((event: DragDropEvent) => {
+      console.log('📥 DragDropEvent:', event.payload.type, event.payload) // 强烈建议打印
+
+      if (event.payload.type === 'enter') {
+        isDragging.value = true
+      } else if (event.payload.type === 'drop') {
+        isDragging.value = false
+        const file = event.payload.paths || []
+        
+		if (file.length === 0) {
+		  console.log('No files in drop event');
+		  return;
+		}
+        
+		const validExtensions = ['pcap', 'pcapng', 'cap'];
+		const fileExtension = file[0].split('.').pop()?.toLowerCase();
+
+		if (!validExtensions.includes(fileExtension || '')) {
+		  error.value = `Invalid file type. Please drop a PCAP file (${validExtensions.join(', ')})`;
+		  return;
+		} else {
+			console.log('✅ Valid file type detected:', file);
+		}
+
+		// Reuse the processFile logic from handleOpenFile
+		error.value = '';
+
+		handleFileDropped(file[0]);
+	  } else if (event.payload.type === 'leave' || event.payload.type === 'cancel') {
+		isDragging.value = false
+	  }
+	})
+
+	console.log('✅ DragDropEvent 监听器已成功注册')
+  } catch (err) {
+	console.error('❌ 注册拖拽监听失败：', err)
+  }
+})
+
+onUnmounted(() => {
+  unlisten?.()
+})
+
 async function handleOpenFile() {
   try {
     const selected = await open({
@@ -59,27 +143,8 @@ async function handleOpenFile() {
     });
 
     if (selected) {
-      loading.value = true;
-      error.value = '';
-
-      // Open file and parse
-      console.log('Opening file:', selected);
-      const messages = await invoke<SipMessage[]>('open_pcap_file', { path: selected as string });
-      console.log('Messages received:', messages?.length || 0);
-
-      // Get sessions
-      sessions.value = await invoke<Session[]>('get_sessions');
-      console.log('Sessions loaded:', sessions.value?.length || 0);
-
-      // Reset selection
-      selectedSessionKey.value = '';
-      selectedMessages.value = [];
-      selectedMessage.value = null;
-      selectedMessageId.value = '';
-
-      if (sessions.value.length === 0) {
-        error.value = 'No SIP sessions found in file';
-      }
+	  error.value = '';
+	  await handleFileDropped(selected);
     }
   } catch (e: any) {
     console.error('Error opening file:', e);
@@ -105,6 +170,7 @@ function handleSelectMessage(message: SipMessage) {
 function getTotalMessages(): number {
   return sessions.value.reduce((sum, s) => sum + s.messages.length, 0);
 }
+
 </script>
 
 <style>
@@ -147,8 +213,8 @@ body {
 }
 
 .right-panel {
-  width: 450px;
-  min-width: 350px;
+  width: 650px;
+  min-width: 650px;
   border-left: 1px solid #ddd;
   overflow-y: auto;
   background: white;
@@ -177,5 +243,46 @@ body {
   color: white;
   font-size: 20px;
   cursor: pointer;
+}
+
+.app-container.drag-active {
+  outline: 3px dashed #3498db;
+  outline-offset: -3px;
+}
+
+.drag-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(52, 152, 219, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.drag-content {
+  text-align: center;
+  padding: 40px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 2px dashed #3498db;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.drag-icon {
+  font-size: 48px;
+  margin: 0 0 12px 0;
+  line-height: 1;
+}
+
+.drag-text {
+  color: #3498db;
+  font-size: 18px;
+  font-weight: 500;
+  margin: 0;
 }
 </style>
