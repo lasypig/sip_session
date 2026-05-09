@@ -40,6 +40,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import type { Event } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import type { DragDropEvent } from '@tauri-apps/api/webview'
 import { invoke } from '@tauri-apps/api/core';
@@ -89,7 +90,7 @@ onMounted( async () => {
   try {
     const webview = getCurrentWebview()
     
-    unlisten = await webview.onDragDropEvent((event: DragDropEvent) => {
+    unlisten = await webview.onDragDropEvent((event: Event<DragDropEvent>) => {
       console.log('📥 DragDropEvent:', event.payload.type, event.payload) // 强烈建议打印
 
       if (event.payload.type === 'enter') {
@@ -117,7 +118,7 @@ onMounted( async () => {
 		error.value = '';
 
 		handleFileDropped(file[0]);
-	  } else if (event.payload.type === 'leave' || event.payload.type === 'cancel') {
+	  } else if (['leave', 'cancel'].includes(event.payload.type)) {
 		isDragging.value = false
 	  }
 	})
