@@ -4,27 +4,27 @@
       <div class="detail-header">
         <h3>Message Detail</h3>
         <div class="msg-title">
-          <span v-if="message.inner.method" class="method">{{ message.inner.method }}</span>
-          <span v-if="message.inner.status_code" class="status">{{ message.inner.status_code }} {{ message.inner.status_text }}</span>
+          <span v-if="message.method" class="method">{{ message.method }}</span>
+          <span v-if="message.status_code" class="status">{{ message.status_code }} {{ message.status_text }}</span>
         </div>
       </div>
 
       <div class="detail-meta">
         <div class="meta-row">
           <span class="label">Time:</span>
-          <span>{{ message.inner.timestamp }}</span>
+          <span>{{ message.timestamp }}</span>
         </div>
         <div class="meta-row">
           <span class="label">From:</span>
-          <span>{{ message.inner.src_ip }}:{{ message.inner.src_port }}</span>
+          <span>{{ message.src_ip }}:{{ message.src_port }}</span>
         </div>
         <div class="meta-row">
           <span class="label">To:</span>
-          <span>{{ message.inner.dst_ip }}:{{ message.inner.dst_port }}</span>
+          <span>{{ message.dst_ip }}:{{ message.dst_port }}</span>
         </div>
         <!-- <div class="meta-row"> -->
         <!--   <span class="label">Protocol:</span> -->
-        <!--   <span>{{ message.inner.protocol }}</span> -->
+        <!--   <span>{{ message.protocol }}</span> -->
         <!-- </div> -->
       </div>
 
@@ -43,7 +43,7 @@
       <div class="tab-content">
         <div v-if="activeTab === 'Headers'" class="headers-tab">
           <table class="headers-table">
-            <tr v-for="(value, key) in message.inner.headers" :key="key">
+            <tr v-for="(value, key) in message.headers" :key="key">
               <td class="header-name">{{ key }}</td>
               <td class="header-value">{{ value }}</td>
             </tr>
@@ -51,7 +51,7 @@
         </div>
 
         <div v-else-if="activeTab === 'Body'" class="body-tab">
-          <pre v-if="message.inner.body" class="body-content">{{ message.inner.body }}</pre>
+          <pre v-if="message.body" class="body-content">{{ message.body }}</pre>
           <div v-else class="no-content">No message body</div>
         </div>
 
@@ -79,7 +79,7 @@ const tabs = ['Headers', 'Body', 'Raw'];
 
 const rawText = computed(() => {
   if (!props.message) return '';
-  return new TextDecoder().decode(new Uint8Array(props.message.inner.raw_data));
+  return new TextDecoder().decode(new Uint8Array(props.message.raw_data));
 });
 </script>
 

@@ -14,12 +14,9 @@ export interface Message {
   raw_data: number[];
 }
 
-export type SessionKey =
-  | { type: 'SIP'; call_id: string }
-  | { type: 'RTSP'; src_ip: string; src_port: number; dst_ip: string; dst_port: number };
-
 export interface Session {
-  key: SessionKey;
+  key: string;
+  protocol: 'SIP' | 'RTSP';
   messages: Message[];
   start_time: string;
   end_time?: string;

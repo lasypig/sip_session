@@ -1,12 +1,12 @@
-use super::protocol::{SessionKey, Message, ProtocolType};
+use super::protocol::{Message};
 use super::parser::SipMessage;
-use super::rtsp_parser::RtspMessage;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
-    pub key: SessionKey,
+    pub key: String,
+    pub protocol: String,
     pub messages: Vec<Message>,
     pub start_time: String,
     pub end_time: Option<String>,
@@ -14,7 +14,7 @@ pub struct Session {
 }
 
 pub struct SessionManager {
-    sessions: HashMap<SessionKey, Session>,
+    sessions: HashMap<String, Session>,
 }
 
 impl SessionManager {
@@ -26,7 +26,7 @@ impl SessionManager {
 
     pub fn add_sip_message(&mut self, message: SipMessage) {
         if let Some(dialog_key) = message.get_dialog_key() {
-            let key = SessionKey::SIP { call_id: dialog_key.call_id.clone() };
+            let key = dialog_key.call_id.clone();
 
             let session = self.sessions.entry(key.clone()).or_insert_with(|| Session {
                 key: key.clone(),
@@ -34,15 +34,15 @@ impl SessionManager {
                 start_time: message.timestamp.clone(),
                 end_time: None,
                 state: "Early".to_string(),
+                protocol: "SIP".to_string(),
             });
 
-            let protocol_message = Message::SIP { inner: message };
-            session.messages.push(protocol_message);
+            session.messages.push(message);
 
             // Sort messages by timestamp
             session.messages.sort_by(|a, b| {
-                let a_parts: Vec<&str> = a.timestamp().split('.').collect();
-                let b_parts: Vec<&str> = b.timestamp().split('.').collect();
+                let a_parts: Vec<&str> = a.timestamp.split('.').collect();
+                let b_parts: Vec<&str> = b.timestamp.split('.').collect();
                 a_parts[0].cmp(&b_parts[0])
                     .then_with(|| {
                         let a_micro = a_parts.get(1).unwrap_or(&"0");
@@ -53,7 +53,7 @@ impl SessionManager {
 
             // Update session state
             session.state = Self::determine_sip_state(&session.messages);
-            session.end_time = session.messages.last().map(|m| m.timestamp().to_string());
+            session.end_time = session.messages.last().map(|m| m.timestamp.to_string());
         }
     }
 
@@ -85,7 +85,7 @@ impl SessionManager {
         })
     }
 
-    pub fn add_rtsp_message(&mut self, message: RtspMessage) {
+    pub fn add_rtsp_message(&mut self, message: SipMessage) {
         // 生成无方向的 key（核心修改）
         let key_str = Self::generate_rtsp_session_key(
             &message.src_ip,
@@ -94,29 +94,29 @@ impl SessionManager {
             message.dst_port,
         );
 
-        let session = self.sessions.entry(SessionKey::RTSP { session_id: key_str.clone() }).or_insert_with(|| Session {
-            key: SessionKey::RTSP { session_id: key_str.clone() },
+        let session = self.sessions.entry(key_str.clone()).or_insert_with(|| Session {
+            key: key_str.clone(),
             messages: Vec::new(),
             start_time: message.timestamp.clone(),
             end_time: None,
             state: "Idle".to_string(),
+            protocol: "SIP".to_string(),
         });
 
-        let protocol_message = Message::RTSP { inner: message };
-        session.messages.push(protocol_message);
+        session.messages.push(message);
 
         // 排序消息（建议使用独立函数，更清晰）
-        session.messages.sort_by(|a, b| Self::compare_timestamps(a.timestamp(), b.timestamp()));
+        session.messages.sort_by(|a, b| Self::compare_timestamps(a.timestamp.as_str(), b.timestamp.as_str()));
 
         // 更新会话状态和结束时间
         session.state = Self::determine_rtsp_state(&session.messages);
-        session.end_time = session.messages.last().map(|m| m.timestamp().to_string());
+        session.end_time = session.messages.last().map(|m| m.timestamp.to_string());
     }
 
     fn determine_sip_state(messages: &[Message]) -> String {
         // Check for BYE (termination)
         for msg in messages {
-            if let Some(method) = msg.method() {
+            if let Some(method) = msg.method.as_ref() {
                 if method == "BYE" {
                     return "Terminated".to_string();
                 }
@@ -126,7 +126,7 @@ impl SessionManager {
         // Check for 200 OK to INVITE (confirmed)
         let mut has_invite_response = false;
         for msg in messages {
-            if let (Some(method), Some(code)) = (msg.method(), msg.status_code()) {
+            if let (Some(method), Some(code)) = (msg.method.as_ref(), msg.status_code) {
                 if method == "INVITE" && code >= 200 && code < 300 {
                     has_invite_response = true;
                 }
@@ -147,8 +147,8 @@ impl SessionManager {
         let mut has_teardown = false;
 
         for msg in messages {
-            if let Some(method) = msg.method() {
-                match method {
+            if let Some(method) = &msg.method {
+                match method.as_str() {
                     "SETUP" => has_setup = true,
                     "PLAY" => has_play = true,
                     "PAUSE" => return "Paused".to_string(),
@@ -180,7 +180,7 @@ impl SessionManager {
     pub fn get_message_by_id(&self, message_id: &str) -> Option<&Message> {
         for session in self.sessions.values() {
             for msg in &session.messages {
-                if msg.id() == message_id {
+                if msg.id == message_id {
                     return Some(msg);
                 }
             }
@@ -188,11 +188,4 @@ impl SessionManager {
         None
     }
 
-    // Helper method to get protocol type from session key
-    pub fn get_protocol_type(&self, key: &SessionKey) -> ProtocolType {
-        match key {
-            SessionKey::SIP { .. } => ProtocolType::SIP,
-            SessionKey::RTSP { .. } => ProtocolType::RTSP,
-        }
-    }
 }

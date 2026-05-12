@@ -7,27 +7,27 @@
     <div class="flow-content">
       <div
         v-for="msg in messages"
-        :key="msg.inner.id"
+        :key="msg.id"
         class="message-item"
-        :class="{ active: selectedId === msg.inner.id }"
+        :class="{ active: selectedId === msg.id }"
         @click="$emit('select-message', msg)"
       >
-        <div class="msg-timestamp">{{ formatTimestamp(msg.inner.timestamp) }}</div>
+        <div class="msg-timestamp">{{ formatTimestamp(msg.timestamp) }}</div>
         <div class="msg-direction">
-          <span class="ip">{{ msg.inner.src_ip }}:{{ msg.inner.src_port }}</span>
-          <span class="arrow">{{ getProtocolArrow(msg.inner.protocol) }}</span>
-          <span class="ip">{{ msg.inner.dst_ip }}:{{ msg.inner.dst_port }}</span>
+          <span class="ip">{{ msg.src_ip }}:{{ msg.src_port }}</span>
+          <span class="arrow">{{ getProtocolArrow(msg.protocol) }}</span>
+          <span class="ip">{{ msg.dst_ip }}:{{ msg.dst_port }}</span>
         </div>
         <div class="msg-type">
-          <span v-if="msg.inner.method" class="method-badge" :class="getProtocolClass(msg.inner.protocol)">
-            {{ msg.inner.method }}
+          <span v-if="msg.method" class="method-badge" :class="getProtocolClass(msg.protocol)">
+            {{ msg.method }}
           </span>
-          <span v-if="msg.inner.status_code" class="status-badge" :class="statusClass(msg.inner.status_code)">
-            {{ msg.inner.status_code }} {{ msg.inner.status_text }}
+          <span v-if="msg.status_code" class="status-badge" :class="statusClass(msg.status_code)">
+            {{ msg.status_code }} {{ msg.status_text }}
           </span>
         </div>
         <div class="msg-protocol">
-          <small :class="protocolColor(msg.inner.protocol)">{{ msg.inner.protocol }}</small>
+          <small :class="protocolColor(msg.protocol)">{{ msg.protocol }}</small>
         </div>
       </div>
       <div v-if="messages.length === 0" class="empty-state">

@@ -1,6 +1,6 @@
 use tauri::State;
 use crate::AppState;
-use crate::sip::{pcap_reader, parser, rtsp_parser, session, protocol};
+use crate::sip::{pcap_reader, parser, session, protocol};
 
 #[tauri::command]
 pub async fn open_pcap_file(
@@ -22,7 +22,7 @@ pub async fn open_pcap_file(
 
         match packet.protocol_type.as_str() {
             "SIP" => {
-                if let Some(msg) = parser::SipMessage::parse(
+                if let Some(msg) = parser::SipMessage::parse_sip(
                     &packet.payload,
                     &packet.timestamp,
                     &packet.src_ip,
@@ -33,11 +33,11 @@ pub async fn open_pcap_file(
                     let debug_info = msg.method.clone().or(msg.status_code.map(|c| c.to_string()));
                     eprintln!("Parsed SIP message: {:?}", debug_info);
                     manager.add_sip_message(msg.clone());
-                    messages.push(protocol::Message::SIP { inner: msg });
+                    messages.push(msg);
                 }
             }
             "RTSP" => {
-                if let Some(msg) = rtsp_parser::RtspMessage::parse(
+                if let Some(msg) = parser::SipMessage::parse_rtsp(
                     &packet.payload,
                     &packet.timestamp,
                     &packet.src_ip,
@@ -48,7 +48,7 @@ pub async fn open_pcap_file(
                     let debug_info = msg.method.clone().or(msg.status_code.map(|c| c.to_string()));
                     eprintln!("Parsed RTSP message: {:?}", debug_info);
                     manager.add_rtsp_message(msg.clone());
-                    messages.push(protocol::Message::RTSP { inner: msg });
+                    messages.push( msg);
                 }
             }
             _ => {

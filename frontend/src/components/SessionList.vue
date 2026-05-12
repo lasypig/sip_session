@@ -13,8 +13,8 @@
         @click="$emit('select-session', session)"
       >
         <div class="session-header">
-          <span class="protocol-badge" :class="session.key.type.toLowerCase()">
-            {{ session.key.type }}
+          <span class="protocol-badge" :class="session.key">
+            {{ session.key }}
           </span>
           <span class="state-badge" :class="session.state.toLowerCase()">
             {{ session.state }}
@@ -48,27 +48,15 @@ defineEmits<{
 }>();
 
 function sessionKey(session: Session): string {
-  if (session.key.type === 'SIP') {
-    return session.key.call_id;
-  } else {
-    return session.key.session_id;
-  }
+    return session.key;
 }
 
 function getSessionTitle(session: Session): string {
-  if (session.key.type === 'SIP') {
-    return `SIP Call-ID: ${session.key.call_id}`;
-  } else {
-    return `RTSP: ${session.key.session_id}`;
-  }
+	return `${session.protocol}: ${session.key}`;
 }
 
 function getSessionDisplay(session: Session): string {
-  if (session.key.type === 'SIP') {
-    return truncate(session.key.call_id, 28);
-  } else {
-    return `${session.key.session_id}`;
-  }
+	return session.key;
 }
 
 function truncate(str: string, len: number): string {

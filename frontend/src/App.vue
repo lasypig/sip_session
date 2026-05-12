@@ -17,7 +17,7 @@
         </div>
       </div>
       <div class="resizer left-resizer"
-           @mousedown="startResize('left')"
+           @mousedown="e => startResize('left', e)"
            :class="{ 'resizing': isResizing }"></div>
       <div class="center-panel" :style="{ width: centerPanelWidth + 'px' }">
         <MessageFlow
@@ -27,7 +27,7 @@
         />
       </div>
       <div class="resizer right-resizer"
-           @mousedown="startResize('right')"
+           @mousedown="e => startResize('right', e)"
            :class="{ 'resizing': isResizing }"></div>
 	  <div class="right-panel" :style="{ width: rightPanelWidth + 'px', flexShrink: 0 }">
         <MessageDetail :message="selectedMessage" />
@@ -89,10 +89,6 @@ async function handleFileDropped(file: string) {
   // Get sessions
   try {
     sessions.value = await invoke<Session[]>('get_sessions');
-    console.log('Sessions loaded:', sessions.value?.length || 0);
-    console.log('Session data sample:', sessions.value.slice(0, 2));
-    console.log('First session type:', sessions.value[0]?.key.type);
-    console.log('First session messages count:', sessions.value[0]?.messages.length);
   } catch (e) {
     console.error('Error getting sessions:', e);
   }
@@ -182,9 +178,7 @@ async function handleOpenFile() {
 
 function handleSelectSession(session: Session) {
   // Use session key based on protocol
-  selectedSessionKey.value = session.key.type === 'SIP'
-    ? session.key.call_id
-    : session.key.session_id;
+  selectedSessionKey.value = session.key;
   selectedMessages.value = session.messages;
   selectedMessage.value = null;
   selectedMessageId.value = '';
@@ -207,10 +201,10 @@ watch(sessions, (newSessions, oldSessions) => {
   console.log('New sessions data:', newSessions);
 }, { deep: true });
 
-function startResize(resizer: 'left' | 'right') {
+function startResize(resizer: 'left' | 'right', event: MouseEvent) {
   isResizing.value = true;
   currentResizer.value = resizer;
-  startX.value = window.event?.clientX || 0;
+  startX.value = event?.clientX || 0;
 
   const mainContent = document.querySelector('.main-content');
   if (mainContent) {
