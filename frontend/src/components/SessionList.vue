@@ -1,7 +1,7 @@
 <template>
   <div class="session-list">
     <div class="list-header">
-      <h3>SIP Sessions</h3>
+      <h3>SIP/RTSP Sessions</h3>
       <span class="count">{{ sessions.length }}</span>
     </div>
     <div class="list-content">
@@ -13,12 +13,15 @@
         @click="$emit('select-session', session)"
       >
         <div class="session-header">
+          <span class="protocol-badge" :class="session.key.type.toLowerCase()">
+            {{ session.key.type }}
+          </span>
           <span class="state-badge" :class="session.state.toLowerCase()">
             {{ session.state }}
           </span>
         </div>
-        <div class="session-call-id" :title="session.dialog_key.call_id">
-          {{ truncate(session.dialog_key.call_id, 28) }}
+        <div class="session-identifier" :title="getSessionTitle(session)">
+          {{ getSessionDisplay(session) }}
         </div>
         <div class="session-meta">
           <span>{{ formatTime(session.start_time) }}</span>
@@ -35,7 +38,7 @@
 <script setup lang="ts">
 import type { Session } from '../types/sip';
 
-defineProps<{
+const props = defineProps<{
   sessions: Session[];
   selectedId?: string;
 }>();
@@ -45,8 +48,27 @@ defineEmits<{
 }>();
 
 function sessionKey(session: Session): string {
-  // Use Call-ID only for grouping
-  return session.dialog_key.call_id;
+  if (session.key.type === 'SIP') {
+    return session.key.call_id;
+  } else {
+    return session.key.session_id;
+  }
+}
+
+function getSessionTitle(session: Session): string {
+  if (session.key.type === 'SIP') {
+    return `SIP Call-ID: ${session.key.call_id}`;
+  } else {
+    return `RTSP: ${session.key.session_id}`;
+  }
+}
+
+function getSessionDisplay(session: Session): string {
+  if (session.key.type === 'SIP') {
+    return truncate(session.key.call_id, 28);
+  } else {
+    return `${session.key.session_id}`;
+  }
 }
 
 function truncate(str: string, len: number): string {
@@ -54,6 +76,7 @@ function truncate(str: string, len: number): string {
 }
 
 function formatTime(timestamp: string): string {
+  if (!timestamp) return '';
   const parts = timestamp.split('.');
   if (parts.length >= 1) {
     return parts[0];
@@ -96,6 +119,7 @@ function formatTime(timestamp: string): string {
 .list-content {
   flex: 1;
   overflow-y: auto;
+  height: calc(100% - 48px); /* Subtract header height */
 }
 
 .session-item {
@@ -117,23 +141,45 @@ function formatTime(timestamp: string): string {
 .session-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   margin-bottom: 6px;
 }
 
-.state-badge {
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 11px;
+.protocol-badge {
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
 }
 
-.state-badge.early {
+.protocol-badge.sip {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.protocol-badge.rtsp {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.state-badge {
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.state-badge.early,
+.state-badge.idle {
   background: #fff3cd;
   color: #856404;
 }
 
-.state-badge.confirmed {
+.state-badge.confirmed,
+.state-badge.ready,
+.state-badge.playing {
   background: #d4edda;
   color: #155724;
 }
@@ -143,7 +189,12 @@ function formatTime(timestamp: string): string {
   color: #721c24;
 }
 
-.session-call-id {
+.state-badge.paused {
+  background: #cce5ff;
+  color: #004085;
+}
+
+.session-identifier {
   font-size: 13px;
   color: #495057;
   font-family: 'Monaco', 'Consolas', monospace;

@@ -2,25 +2,34 @@
   <div class="app-container"
        :class="{ 'drag-active': isDragging }">
     <Toolbar @open-file="handleOpenFile" :loading="loading" />
-    <div class="main-content">
-      <div class="left-panel">
-        <div class="debug-info" v-if="sessions.length">
-          {{ sessions.length }} sessions, {{ getTotalMessages() }} messages
-        </div>
+    <div class="main-content"
+         @mousemove="handleMouseMove"
+         @mouseup="handleMouseUp"
+         :class="{ 'resizing': isResizing }">
+      <div class="left-panel" :style="{ width: leftPanelWidth + 'px' }">
         <SessionList
           :sessions="sessions"
           :selected-id="selectedSessionKey"
           @select-session="handleSelectSession"
         />
+        <div class="debug-info-bottom" v-if="sessions.length">
+          {{ sessions.length }} sessions, {{ getTotalMessages() }} messages
+        </div>
       </div>
-      <div class="center-panel">
+      <div class="resizer left-resizer"
+           @mousedown="startResize('left')"
+           :class="{ 'resizing': isResizing }"></div>
+      <div class="center-panel" :style="{ width: centerPanelWidth + 'px' }">
         <MessageFlow
           :messages="selectedMessages"
           :selected-id="selectedMessageId"
           @select-message="handleSelectMessage"
         />
       </div>
-      <div class="right-panel">
+      <div class="resizer right-resizer"
+           @mousedown="startResize('right')"
+           :class="{ 'resizing': isResizing }"></div>
+	  <div class="right-panel" :style="{ width: rightPanelWidth + 'px', flexShrink: 0 }">
         <MessageDetail :message="selectedMessage" />
       </div>
     </div>
@@ -39,7 +48,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import type { Event } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import type { DragDropEvent } from '@tauri-apps/api/webview'
@@ -49,17 +58,24 @@ import Toolbar from './components/Toolbar.vue';
 import SessionList from './components/SessionList.vue';
 import MessageFlow from './components/MessageFlow.vue';
 import MessageDetail from './components/MessageDetail.vue';
-import type { Session, SipMessage } from './types/sip';
+import type { Session, Message } from './types/sip';
 
 const sessions = ref<Session[]>([]);
 const selectedSessionKey = ref<string>('');
-const selectedMessages = ref<SipMessage[]>([]);
-const selectedMessage = ref<SipMessage | null>(null);
+const selectedMessages = ref<Message[]>([]);
+const selectedMessage = ref<Message | null>(null);
 const selectedMessageId = ref<string>('');
 const loading = ref(false);
 const error = ref('');
 
 const isDragging = ref(false);
+const isResizing = ref(false);
+const currentResizer = ref<'left' | 'right' | null>(null);
+const leftPanelWidth = ref<number>(300);
+const centerPanelWidth = ref<number>(300);
+const rightPanelWidth = ref<number>(800);
+const startX = ref<number>(0);
+const startWidths = ref<{ left: number, center: number, right: number } | null>(null);
 
 let unlisten: (() => void) | null = null;
 
@@ -67,12 +83,19 @@ async function handleFileDropped(file: string) {
   // Open file and parse
 	  loading.value = true;
   console.log('Opening file:', file);
-  const messages = await invoke<SipMessage[]>('open_pcap_file', { path: file as string });
+  const messages = await invoke<Message[]>('open_pcap_file', { path: file as string });
   console.log('Messages received:', messages?.length || 0);
 
   // Get sessions
-  sessions.value = await invoke<Session[]>('get_sessions');
-  console.log('Sessions loaded:', sessions.value?.length || 0);
+  try {
+    sessions.value = await invoke<Session[]>('get_sessions');
+    console.log('Sessions loaded:', sessions.value?.length || 0);
+    console.log('Session data sample:', sessions.value.slice(0, 2));
+    console.log('First session type:', sessions.value[0]?.key.type);
+    console.log('First session messages count:', sessions.value[0]?.messages.length);
+  } catch (e) {
+    console.error('Error getting sessions:', e);
+  }
 
   // Reset selection
   selectedSessionKey.value = '';
@@ -131,6 +154,8 @@ onMounted( async () => {
 
 onUnmounted(() => {
   unlisten?.()
+  document.removeEventListener('mousemove', handleMouseMove as any);
+  document.removeEventListener('mouseup', handleMouseUp);
 })
 
 async function handleOpenFile() {
@@ -156,20 +181,72 @@ async function handleOpenFile() {
 }
 
 function handleSelectSession(session: Session) {
-  // Use call_id as key (grouped by Call-ID only)
-  selectedSessionKey.value = session.dialog_key.call_id;
+  // Use session key based on protocol
+  selectedSessionKey.value = session.key.type === 'SIP'
+    ? session.key.call_id
+    : session.key.session_id;
   selectedMessages.value = session.messages;
   selectedMessage.value = null;
   selectedMessageId.value = '';
 }
 
-function handleSelectMessage(message: SipMessage) {
+function handleSelectMessage(message: Message) {
   selectedMessage.value = message;
   selectedMessageId.value = message.id;
 }
 
 function getTotalMessages(): number {
-  return sessions.value.reduce((sum, s) => sum + s.messages.length, 0);
+  const total = sessions.value.reduce((sum, s) => sum + s.messages.length, 0);
+  console.log('Total messages calculated:', total);
+  return total;
+}
+
+// Watch for changes
+watch(sessions, (newSessions, oldSessions) => {
+  console.log('Sessions changed:', newSessions?.length || 0, 'old:', oldSessions?.length || 0);
+  console.log('New sessions data:', newSessions);
+}, { deep: true });
+
+function startResize(resizer: 'left' | 'right') {
+  isResizing.value = true;
+  currentResizer.value = resizer;
+  startX.value = window.event?.clientX || 0;
+
+  const mainContent = document.querySelector('.main-content');
+  if (mainContent) {
+    const rect = mainContent.getBoundingClientRect();
+    startWidths.value = {
+      left: leftPanelWidth.value,
+      center: centerPanelWidth.value,
+      right: rightPanelWidth.value
+    };
+  }
+}
+
+function handleMouseMove(event: MouseEvent) {
+  if (!isResizing.value || !currentResizer.value || !startWidths.value) return;
+
+  const deltaX = event.clientX - startX.value;
+
+  if (currentResizer.value === 'left') {
+    const newLeft = Math.max(250, Math.min(600, startWidths.value.left + deltaX));
+    const newCenter = startWidths.value.center - deltaX;
+
+    leftPanelWidth.value = newLeft;
+    centerPanelWidth.value = Math.max(200, newCenter);
+  } else if (currentResizer.value === 'right') {
+    const newRight = Math.max(400, Math.min(800, startWidths.value.right - deltaX));
+    const newCenter = startWidths.value.center + deltaX;
+
+    rightPanelWidth.value = newRight;
+    centerPanelWidth.value = Math.max(200, newCenter);
+  }
+}
+
+function handleMouseUp() {
+  isResizing.value = false;
+  currentResizer.value = null;
+  startWidths.value = null;
 }
 
 </script>
@@ -200,33 +277,66 @@ body {
 }
 
 .left-panel {
-  width: 300px;
   min-width: 250px;
+  max-width: 600px;
   border-right: 1px solid #ddd;
   overflow-y: auto;
   background: white;
 }
 
 .center-panel {
-  flex: 1;
+  min-width: 250px;
   overflow-y: auto;
   background: white;
 }
 
 .right-panel {
-  width: 650px;
-  min-width: 650px;
+  min-width: 500px;
+  max-width: 800px;
   border-left: 1px solid #ddd;
   overflow-y: auto;
   background: white;
+  margin-right: 0;
+  padding-right: 0;
 }
 
-.debug-info {
+.resizer {
+  width: 3px;
+  background: transparent;
+  cursor: col-resize;
+  transition: background-color 0.2s;
+}
+
+.resizer:hover {
+  background: #3498db;
+}
+
+.resizer.left-resizer {
+  border-right: 1px solid #ddd;
+}
+
+.resizer.right-resizer {
+  border-left: 1px solid #ddd;
+  margin-right: 0;
+}
+
+.resizer.resizing {
+  background: #3498db;
+  background: linear-gradient(to right, #3498db, transparent);
+}
+
+.main-content.resizing {
+  cursor: col-resize;
+}
+
+.debug-info-bottom {
   padding: 8px 16px;
   background: #e3f2fd;
   border-bottom: 1px solid #ddd;
   font-size: 12px;
   color: #1976d2;
+  position: sticky;
+  bottom: 0;
 }
 
 .error-bar {

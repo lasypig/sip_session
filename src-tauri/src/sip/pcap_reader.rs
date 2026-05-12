@@ -14,6 +14,7 @@ pub struct ParsedPacket {
     pub dst_port: u16,
     pub protocol: String,
     pub payload: Vec<u8>,
+    pub protocol_type: String,  // "SIP" or "RTSP"
 }
 
 pub fn read_pcap_file(path: &Path) -> Result<Vec<ParsedPacket>, String> {
@@ -83,10 +84,10 @@ fn format_ipv4(addr: &[u8; 4]) -> String {
 
 fn extract_sip_from_data(data: &[u8], timestamp_ns: u64) -> Option<ParsedPacket> {
     // Debug: Print first bytes
-    if !data.is_empty() {
-        let preview_len = std::cmp::min(36, data.len());
-        // eprintln!("Packet data (first {} bytes): {:02x?}", preview_len, &data[..preview_len]);
-    }
+    // if !data.is_empty() {
+    //     let preview_len = std::cmp::min(36, data.len());
+    //     // eprintln!("Packet data (first {} bytes): {:02x?}", preview_len, &data[..preview_len]);
+    // }
 
     let mut headers = None;
     let mut eth_net_none = false;
@@ -195,11 +196,13 @@ fn extract_sip_from_data(data: &[u8], timestamp_ns: u64) -> Option<ParsedPacket>
         }
     };
 
-    // Check if it's SIP traffic
+    // Check if it's SIP or RTSP traffic
     let is_sip_port = src_port == 5060 || src_port == 5061 ||
                      dst_port == 5060 || dst_port == 5061;
 
-    if !is_sip_port && !is_sip_payload(&payload_vec) {
+    let is_rtsp_port = src_port == 554 || dst_port == 554;
+
+    if !is_sip_port && !is_rtsp_port && !is_sip_payload(&payload_vec) && !is_rtsp_payload(&payload_vec) {
         return None;
     }
 
@@ -213,7 +216,12 @@ fn extract_sip_from_data(data: &[u8], timestamp_ns: u64) -> Option<ParsedPacket>
         src_port,
         dst_port,
         protocol,
-        payload: payload_vec,
+        payload: payload_vec.clone(),
+        protocol_type: if is_sip_port || is_sip_payload(&payload_vec) {
+            "SIP".to_string()
+        } else {
+            "RTSP".to_string()
+        },
     })
 }
 
@@ -248,6 +256,23 @@ fn is_sip_payload(payload: &[u8]) -> bool {
         upper.starts_with("REGISTER ") ||
         upper.starts_with("OPTIONS ") ||
         upper.starts_with("SIP/2.0")
+    } else {
+        false
+    }
+}
+
+fn is_rtsp_payload(payload: &[u8]) -> bool {
+    if let Ok(text) = String::from_utf8(payload[..std::cmp::min(10, payload.len())].to_vec()) {
+        let upper = text.to_uppercase();
+        upper.starts_with("RTSP/") ||
+        upper.starts_with("OPTIONS ") ||
+        upper.starts_with("DESCRIBE ") ||
+        upper.starts_with("SETUP ") ||
+        upper.starts_with("PLAY ") ||
+        upper.starts_with("PAUSE ") ||
+        upper.starts_with("TEARDOWN ") ||
+        upper.starts_with("GET_PARAMETER ") ||
+        upper.starts_with("SET_PARAMETER ")
     } else {
         false
     }

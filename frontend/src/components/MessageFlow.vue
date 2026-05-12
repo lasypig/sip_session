@@ -7,25 +7,27 @@
     <div class="flow-content">
       <div
         v-for="msg in messages"
-        :key="msg.id"
+        :key="msg.inner.id"
         class="message-item"
-        :class="{ active: selectedId === msg.id }"
+        :class="{ active: selectedId === msg.inner.id }"
         @click="$emit('select-message', msg)"
       >
-        <div class="msg-timestamp">{{ formatTimestamp(msg.timestamp) }}</div>
+        <div class="msg-timestamp">{{ formatTimestamp(msg.inner.timestamp) }}</div>
         <div class="msg-direction">
-          <span class="ip">{{ msg.src_ip }}:{{ msg.src_port }}</span>
-          <span class="arrow">→</span>
-          <span class="ip">{{ msg.dst_ip }}:{{ msg.dst_port }}</span>
+          <span class="ip">{{ msg.inner.src_ip }}:{{ msg.inner.src_port }}</span>
+          <span class="arrow">{{ getProtocolArrow(msg.inner.protocol) }}</span>
+          <span class="ip">{{ msg.inner.dst_ip }}:{{ msg.inner.dst_port }}</span>
         </div>
         <div class="msg-type">
-          <span v-if="msg.method" class="method-badge">{{ msg.method }}</span>
-          <span v-if="msg.status_code" class="status-badge" :class="statusClass(msg.status_code)">
-            {{ msg.status_code }} {{ msg.status_text }}
+          <span v-if="msg.inner.method" class="method-badge" :class="getProtocolClass(msg.inner.protocol)">
+            {{ msg.inner.method }}
+          </span>
+          <span v-if="msg.inner.status_code" class="status-badge" :class="statusClass(msg.inner.status_code)">
+            {{ msg.inner.status_code }} {{ msg.inner.status_text }}
           </span>
         </div>
         <div class="msg-protocol">
-          <small>{{ msg.protocol }}</small>
+          <small :class="protocolColor(msg.inner.protocol)">{{ msg.inner.protocol }}</small>
         </div>
       </div>
       <div v-if="messages.length === 0" class="empty-state">
@@ -36,15 +38,15 @@
 </template>
 
 <script setup lang="ts">
-import type { SipMessage } from '../types/sip';
+import type { Message } from '../types/sip';
 
 defineProps<{
-  messages: SipMessage[];
+  messages: Message[];
   selectedId?: string;
 }>();
 
 defineEmits<{
-  'select-message': [message: SipMessage];
+  'select-message': [message: Message];
 }>();
 
 function formatTimestamp(ts: string): string {
@@ -58,12 +60,46 @@ function formatTimestamp(ts: string): string {
   return ts;
 }
 
-function statusClass(code: number): string {
-  if (code >= 100 && code < 200) return 'provisional';
-  if (code >= 200 && code < 300) return 'success';
-  if (code >= 300 && code < 400) return 'redirect';
-  if (code >= 400 && code < 500) return 'client-error';
-  if (code >= 500) return 'server-error';
+function getProtocolArrow(protocol: string): string {
+  switch (protocol) {
+    case 'RTSP':
+      return '⏯️';
+    case 'SIP':
+    default:
+      return '→';
+  }
+}
+
+function getProtocolClass(protocol: string): string {
+  switch (protocol) {
+    case 'RTSP':
+      return 'rtsp-method';
+    case 'SIP':
+    default:
+      return 'sip-method';
+  }
+}
+
+function protocolColor(protocol: string): string {
+  switch (protocol) {
+    case 'RTSP':
+      return 'rtsp-text';
+    case 'SIP':
+    default:
+      return 'sip-text';
+  }
+}
+
+function statusClass(status: number): string {
+  if (status >= 200 && status < 300) {
+    return 'status-success';
+  } else if (status >= 300 && status < 400) {
+    return 'status-redirect';
+  } else if (status >= 400 && status < 500) {
+    return 'status-client-error';
+  } else if (status >= 500) {
+    return 'status-server-error';
+  }
   return '';
 }
 </script>
@@ -91,108 +127,121 @@ function statusClass(code: number): string {
 }
 
 .count {
-  font-size: 13px;
-  color: #6c757d;
+  background: #3498db;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .flow-content {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
 }
 
 .message-item {
-  padding: 10px 12px;
-  margin-bottom: 6px;
-  border: 1px solid #e9ecef;
-  border-radius: 6px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #eee;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background 0.15s;
 }
 
 .message-item:hover {
-  border-color: #3498db;
   background: #f8f9fa;
 }
 
 .message-item.active {
-  border-color: #2196f3;
   background: #e3f2fd;
+  border-left: 3px solid #2196f3;
 }
 
 .msg-timestamp {
   font-size: 11px;
   color: #6c757d;
-  font-family: 'Monaco', 'Consolas', monospace;
   margin-bottom: 4px;
+  font-family: 'Monaco', 'Consolas', monospace;
 }
 
 .msg-direction {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-  font-size: 13px;
+  margin-bottom: 4px;
+  font-size: 12px;
 }
 
-.msg-direction .ip {
-  font-family: 'Monaco', 'Consolas', monospace;
+.ip {
   color: #495057;
+  font-family: 'Monaco', 'Consolas', monospace;
 }
 
-.msg-direction .arrow {
-  color: #3498db;
-  font-weight: bold;
+.arrow {
+  margin: 0 8px;
+  color: #6c757d;
 }
 
 .msg-type {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 4px;
 }
 
 .method-badge {
-  padding: 2px 8px;
-  background: #3498db;
-  color: white;
+  padding: 2px 6px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
+  text-transform: uppercase;
+}
+
+.sip-method {
+  background: #e3f2fd;
+  color: #1976d2;
+}
+
+.rtsp-method {
+  background: #fff3e0;
+  color: #f57c00;
 }
 
 .status-badge {
-  padding: 2px 8px;
+  padding: 2px 6px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
 }
 
-.status-badge.provisional {
-  background: #fff3cd;
-  color: #856404;
-}
-
-.status-badge.success {
+.status-success {
   background: #d4edda;
   color: #155724;
 }
 
-.status-badge.redirect {
-  background: #cce5ff;
-  color: #004085;
+.status-redirect {
+  background: #fff3cd;
+  color: #856404;
 }
 
-.status-badge.client-error {
+.status-client-error {
   background: #f8d7da;
   color: #721c24;
 }
 
-.status-badge.server-error {
+.status-server-error {
   background: #f5c6cb;
   color: #721c24;
 }
 
 .msg-protocol {
   font-size: 10px;
-  color: #868e96;
+}
+
+.sip-text {
+  color: #1976d2;
+}
+
+.rtsp-text {
+  color: #f57c00;
 }
 
 .empty-state {

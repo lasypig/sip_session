@@ -1,11 +1,11 @@
-export interface SipMessage {
+export interface Message {
   id: string;
   timestamp: string;
   src_ip: string;
   dst_ip: string;
   src_port: number;
   dst_port: number;
-  protocol?: string;
+  protocol: 'SIP' | 'RTSP';
   method?: string;
   status_code?: number;
   status_text?: string;
@@ -14,15 +14,13 @@ export interface SipMessage {
   raw_data: number[];
 }
 
-export interface DialogKey {
-  call_id: string;
-  from_tag: string;
-  to_tag: string;
-}
+export type SessionKey =
+  | { type: 'SIP'; call_id: string }
+  | { type: 'RTSP'; src_ip: string; src_port: number; dst_ip: string; dst_port: number };
 
 export interface Session {
-  dialog_key: DialogKey;
-  messages: SipMessage[];
+  key: SessionKey;
+  messages: Message[];
   start_time: string;
   end_time?: string;
   state: string;
